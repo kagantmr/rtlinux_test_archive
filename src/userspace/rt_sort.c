@@ -1,6 +1,5 @@
 
 #define _POSIX_C_SOURCE 200809L
-#include "lib/merge_sort.h"
 #include <signal.h>
 #include <stdlib.h>
 #include <time.h>
