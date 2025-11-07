@@ -1,66 +1,57 @@
-
 #define _POSIX_C_SOURCE 200809L
 #include <signal.h>
 #include <stdlib.h>
 #include <time.h>
 #include <sys/mman.h>
 #include <sched.h>
-
 #include <stdio.h>
 
 #define PERIOD_NS 10000000L  // 10 ms
 #define SIZE 50
-
+#define LOG_SIZE 10000       // number of timing samples
 
 static volatile sig_atomic_t running = 1;
+static long long latencies[LOG_SIZE];
+static int latency_index = 0;
 
+/* ---------- Signal Handling ---------- */
 void handle_sigint(int sig) {
     (void)sig;
     running = 0;
 }
 
+/* ---------- Merge Sort Implementation ---------- */
+static int merge_buffer[SIZE];
 
-
-static int merge_buffer[SIZE]; // global buffer
-
-void merge(int* array, int start, int middle, int end) {
-    int i, j, k;
-
-    i = start;
-    j = middle + 1;
-    k = start;
+void merge(int *array, int start, int middle, int end) {
+    int i = start, j = middle + 1, k = start;
 
     while (i <= middle && j <= end) {
-        if (array[i] <= array[j]) {
-            merge_buffer[k++] = array[i];
-        } else {
-            merge_buffer[k++] = array[j];
-        }
-    }
-    
-    while (i <= middle) { 
-        merge_buffer[k++] = array[i++]; 
+        if (array[i] <= array[j])
+            merge_buffer[k++] = array[i++];
+        else
+            merge_buffer[k++] = array[j++];
     }
 
-    while (j <= end) { 
-        merge_buffer[k++] = array[j++]; 
-    }
+    while (i <= middle)
+        merge_buffer[k++] = array[i++];
+    while (j <= end)
+        merge_buffer[k++] = array[j++];
 
-    for (int i = start; i < end; i++) {
-        array[i] = merge_buffer[i];
-    }
-
+    for (int n = start; n <= end; n++)
+        array[n] = merge_buffer[n];
 }
 
-void merge_sort(int* array, int start, int end) {
+void merge_sort(int *array, int start, int end) {
     if (start < end) {
         int middle = (start + end) / 2;
         merge_sort(array, start, middle);
-        merge_sort(array, middle+1, end);
+        merge_sort(array, middle + 1, end);
         merge(array, start, middle, end);
     }
-} 
+}
 
+/* ---------- Tiny RNG for test data ---------- */
 static unsigned int x = 123456789, y = 362436069, z = 521288629;
 static inline unsigned int xor_random(void) {
     unsigned int t = x ^ (x << 11);
@@ -74,6 +65,7 @@ void fill_array(int *array) {
         array[i] = xor_random();
 }
 
+/* ---------- Main ---------- */
 int main(void) {
     signal(SIGINT, handle_sigint);
     signal(SIGTERM, handle_sigint);
@@ -84,13 +76,15 @@ int main(void) {
         return EXIT_FAILURE;
     }
 
-    // setup realtime environment
+    /* Setup realtime environment */
     struct sched_param p;
     p.sched_priority = 80;
+
     if (mlockall(MCL_CURRENT | MCL_FUTURE) == -1) {
         perror("mlockall");
         return EXIT_FAILURE;
     }
+
     if (sched_setscheduler(0, SCHED_FIFO, &p) == -1) {
         perror("sched_setscheduler");
         munlockall();
@@ -100,12 +94,20 @@ int main(void) {
     struct timespec start, end, next;
     clock_gettime(CLOCK_MONOTONIC, &next);
 
+    /* ---------- Real-time Loop ---------- */
     while (running) {
         fill_array(arr);
 
         clock_gettime(CLOCK_MONOTONIC, &start);
         merge_sort(arr, 0, SIZE - 1);
         clock_gettime(CLOCK_MONOTONIC, &end);
+
+        long long elapsed =
+            (end.tv_sec - start.tv_sec) * 1000000000LL +
+            (end.tv_nsec - start.tv_nsec);
+
+        if (latency_index < LOG_SIZE)
+            latencies[latency_index++] = elapsed;
 
         next.tv_nsec += PERIOD_NS;
         while (next.tv_nsec >= 1000000000L) {
@@ -116,7 +118,14 @@ int main(void) {
         clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &next, NULL);
     }
 
+    /* ---------- Cleanup ---------- */
     munlockall();
     free(arr);
+
+    /* ---------- Output Logged Timings ---------- */
+    printf("Logged %d latency samples (ns):\n", latency_index);
+    for (int i = 0; i < latency_index; i++)
+        printf("%lld\n", latencies[i]);
+
     return EXIT_SUCCESS;
 }
