@@ -1,12 +1,22 @@
 
-#include "rt_setup.h"
+#define _POSIX_C_SOURCE 200809L
+#include "lib/merge_sort.h"
+#include <signal.h>
+#include <stdlib.h>
+#include <time.h>
+#include <sys/mman.h>
+#include <sched.h>
 
+#include <stdio.h>
 
-#define PERIOD_NS 10000000L   // 10 ms
-#define SIZE 50
+#define PERIOD_NS 10000000L  // 10 ms
 
+static volatile sig_atomic_t running = 1;
 
-static int merge_buffer[SIZE];
+void handle_sigint(int sig) {
+    (void)sig;
+    running = 0;
+}
 
 static unsigned int x = 123456789, y = 362436069, z = 521288629;
 static inline unsigned int xor_random(void) {
@@ -16,65 +26,40 @@ static inline unsigned int xor_random(void) {
     return z & 1023;
 }
 
-void fill_array(int* array) {
-    for (int i = 0; i < SIZE; i++) {
+void fill_array(int *array) {
+    for (int i = 0; i < SIZE; i++)
         array[i] = xor_random();
-    } 
 }
 
-void merge(int* array, size_t start, size_t middle, size_t end) {
-    size_t i, j, k;
+int main(void) {
+    signal(SIGINT, handle_sigint);
+    signal(SIGTERM, handle_sigint);
 
-    i = start;
-    j = middle + 1;
-    k = start;
-
-    while (i <= middle && j <= end) {
-        if (array[i] <= array[j]) {
-            merge_buffer[k++] = array[i];
-        } else {
-            merge_buffer[k++] = array[j];
-        }
-    }
-    
-    while (i <= middle) { 
-        merge_buffer[k++] = array[i++]; 
+    int *arr = calloc(SIZE, sizeof(int));
+    if (!arr) {
+        perror("calloc");
+        return EXIT_FAILURE;
     }
 
-    while (j <= end) { 
-        merge_buffer[k++] = array[j++]; 
+    // setup realtime environment
+    struct sched_param p;
+    p.sched_priority = 80;
+    if (mlockall(MCL_CURRENT | MCL_FUTURE) == -1) {
+        perror("mlockall");
+        return EXIT_FAILURE;
+    }
+    if (sched_setscheduler(0, SCHED_FIFO, &p) == -1) {
+        perror("sched_setscheduler");
+        munlockall();
+        return EXIT_FAILURE;
     }
 
-    for (int i = start; i < end; i++) {
-        array[i] = merge_buffer[i];
-    }
-
-}
-
-void merge_sort(int* array, size_t start, size_t end) {
-    if (start < end) {
-        size_t middle = (start + end) / 2;
-        merge_sort(array, start, middle);
-        merge_sort(array, middle+1, end);
-        merge(array, start, middle, end);
-    }
-} 
-
-
-int main() {
-    int *arr;
-    arr = calloc(SIZE, sizeof(int));
-    fill_array(merge_buffer);    
-    struct sched_param *p;
-    rt_setup(p);
-    
-struct timespec start, end;
-
-    struct timespec next;
+    struct timespec start, end, next;
     clock_gettime(CLOCK_MONOTONIC, &next);
 
-    while (1) {
+    while (running) {
         fill_array(arr);
+
         clock_gettime(CLOCK_MONOTONIC, &start);
         merge_sort(arr, 0, SIZE - 1);
         clock_gettime(CLOCK_MONOTONIC, &end);
@@ -84,10 +69,11 @@ struct timespec start, end;
             next.tv_nsec -= 1000000000L;
             next.tv_sec++;
         }
+
         clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &next, NULL);
     }
 
-    rt_exit(p);
+    munlockall();
     free(arr);
     return EXIT_SUCCESS;
 }
