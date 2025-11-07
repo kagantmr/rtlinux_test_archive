@@ -24,8 +24,8 @@ void handle_sigint(int sig) {
 
 static int merge_buffer[SIZE]; // global buffer
 
-void merge(int* array, size_t start, size_t middle, size_t end) {
-    size_t i, j, k;
+void merge(int* array, int start, int middle, int end) {
+    int i, j, k;
 
     i = start;
     j = middle + 1;
@@ -53,9 +53,9 @@ void merge(int* array, size_t start, size_t middle, size_t end) {
 
 }
 
-void merge_sort(int* array, size_t start, size_t end) {
+void merge_sort(int* array, int start, int end) {
     if (start < end) {
-        size_t middle = (start + end) / 2;
+        int middle = (start + end) / 2;
         merge_sort(array, start, middle);
         merge_sort(array, middle+1, end);
         merge(array, start, middle, end);
