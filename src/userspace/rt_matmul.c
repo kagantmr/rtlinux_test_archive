@@ -7,74 +7,52 @@
 #include <stdio.h>
 
 #define PERIOD_NS 10000000L  // 10 ms
-#define SIZE 50
+#define SIZE 32
 #define LOG_SIZE 10000       // number of timing samples
 
 static volatile sig_atomic_t running = 1;
 static long long latencies[LOG_SIZE];
 static int latency_index = 0;
 
-/* ---------- Signal Handling ---------- */
+// allocate matrices statically to prevent stack overflow
+int A[SIZE][SIZE];
+int B[SIZE][SIZE];
+int result[SIZE][SIZE];
+
+// Fill a matrix with sum of indices
+static void fill_matrix(int m[SIZE][SIZE]) {
+    for (int i = 0; i < SIZE; i++) {
+        for (int j = 0; j < SIZE; j++) {
+            m[i][j] = i + j;
+        }
+    }
+}
+
+void matmul(int A[SIZE][SIZE], int B[SIZE][SIZE], int result[SIZE][SIZE]) {
+    for (int i = 0; i < SIZE; i++) {
+        for (int j = 0; j < SIZE; j++) {
+            int sum = 0;
+            for (int k = 0; k < SIZE; k++) {
+                sum += A[i][k] * B[k][j];
+            }
+            result[i][j] = sum;
+        }
+    }
+}
+
+/* ---------- Signal handling ---------- */
 void handle_sigint(int sig) {
     (void)sig;
     running = 0;
 }
 
-/* ---------- Merge Sort Implementation ---------- */
-static int merge_buffer[SIZE];
-
-static void merge(int *array, int start, int middle, int end) {
-    int i = start, j = middle + 1, k = start;
-
-    while (i <= middle && j <= end) {
-        if (array[i] <= array[j])
-            merge_buffer[k++] = array[i++];
-        else
-            merge_buffer[k++] = array[j++];
-    }
-
-    while (i <= middle)
-        merge_buffer[k++] = array[i++];
-    while (j <= end)
-        merge_buffer[k++] = array[j++];
-
-    for (int n = start; n <= end; n++)
-        array[n] = merge_buffer[n];
-}
-
-void merge_sort(int *array, int start, int end) {
-    if (start < end) {
-        int middle = (start + end) / 2;
-        merge_sort(array, start, middle);
-        merge_sort(array, middle + 1, end);
-        merge(array, start, middle, end);
-    }
-}
-
-/* ---------- Tiny RNG for test data ---------- */
-static unsigned int x = 123456789, y = 362436069, z = 521288629;
-static inline unsigned int xor_random(void) {
-    unsigned int t = x ^ (x << 11);
-    x = y; y = z;
-    z ^= (z >> 19) ^ (t ^ (t >> 8));
-    return z & 1023;
-}
-
-static void fill_array(int *array) {
-    for (int i = 0; i < SIZE; i++)
-        array[i] = xor_random();
-}
-
-/* ---------- Main ---------- */
+/* ---------- main ---------- */
 int main(void) {
     signal(SIGINT, handle_sigint);
     signal(SIGTERM, handle_sigint);
 
-    int *arr = calloc(SIZE, sizeof(int));
-    if (!arr) {
-        perror("calloc");
-        return EXIT_FAILURE;
-    }
+    fill_matrix(A);
+    fill_matrix(B);
 
     /* Setup realtime environment */
     struct sched_param p;
@@ -98,10 +76,9 @@ int main(void) {
 
     
     while (running) {
-        fill_array(arr);
 
         clock_gettime(CLOCK_MONOTONIC, &start);
-        merge_sort(arr, 0, SIZE - 1);
+        matmul(A, B, result);
         clock_gettime(CLOCK_MONOTONIC, &end);
 
         long long elapsed =
@@ -120,11 +97,11 @@ int main(void) {
         clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &next, NULL);
     }
 
-    /* ---------- Write Logged Timings to File ---------- */
+    // ---------- Write logged timings to file after loop
     FILE *fp = fopen("rt_sort_log.txt", "w");
     if (fp == NULL) {
         perror("fopen");
-        /* If file can't be opened, fallback to printing to stdout */
+        // If file can't be opened, fallback to printing to stdout
         printf("Failed to open rt_sort_log.txt for writing. Printing to stdout instead.\n");
         printf("Logged %d latency samples (ns):\n", latency_index);
         for (int i = 0; i < latency_index; i++)
@@ -137,12 +114,11 @@ int main(void) {
             }
         }
         fclose(fp);
-        printf("Logged %d samples to rt_sort_log.txt\n", latency_index);
+        printf("Logged %d samples to rt_matmul_log.txt\n", latency_index);
     }
 
-    /* ---------- Cleanup ---------- */
+    /* ---------- Clean-up ---------- */
     munlockall();
-    free(arr);
 
     return EXIT_SUCCESS;
 }
