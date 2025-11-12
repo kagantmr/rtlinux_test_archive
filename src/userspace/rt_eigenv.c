@@ -6,6 +6,8 @@
 #include <sched.h>
 #include <stdio.h>
 #include <math.h>
+#include <pthread.h>
+
 
 #define PERIOD_NS 10000000L  // 10 ms
 #define SIZE 32
@@ -119,6 +121,11 @@ int main(void) {
         return EXIT_FAILURE;
     }
     prefault_stack();
+
+    cpu_set_t set;
+    CPU_ZERO(&set);
+    CPU_SET(0, &set);
+    pthread_setaffinity_np(pthread_self(), sizeof(set), &set);
 
     if (sched_setscheduler(0, SCHED_FIFO, &p) == -1) {
         perror("sched_setscheduler");
