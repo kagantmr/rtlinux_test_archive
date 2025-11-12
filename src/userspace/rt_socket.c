@@ -7,6 +7,13 @@
 #include <time.h>
 
 #define PERIOD_NS 10000000L   // 10 ms
+#define STACK_PREFLT (4 * 1024 * 1024)  // 8 MB
+
+void prefault_stack(void) {
+    volatile char stack[STACK_PREFLT];
+    for (size_t i = 0; i < STACK_PREFLT; i += 4096)
+        stack[i] = 0;
+}
 
 int main(void) {
     struct sched_param p = { .sched_priority = 80 };

@@ -1,6 +1,6 @@
 # -------- Configuration --------
 CC      := gcc
-CFLAGS  := -std=gnu11 -Wall -Wextra -O2 -D_GNU_SOURCE
+CFLAGS  := -std=gnu11 -Wall -Wextra -O2 -D_GNU_SOURCE -ffast-math
 INCLUDE := -Iinclude
 SRC_DIR := src/userspace
 BUILD_DIR := build/userspace

@@ -9,10 +9,17 @@
 #define PERIOD_NS 10000000L  // 10 ms
 #define SIZE 32
 #define LOG_SIZE 10000       // number of timing samples
+#define STACK_PREFLT (4 * 1024 * 1024)  // 8 MB
 
 static volatile sig_atomic_t running = 1;
 static long long latencies[LOG_SIZE];
 static int latency_index = 0;
+
+void prefault_stack(void) {
+    volatile char stack[STACK_PREFLT];
+    for (size_t i = 0; i < STACK_PREFLT; i += 4096)
+        stack[i] = 0;
+}
 
 // allocate matrices statically to prevent stack overflow
 int A[SIZE][SIZE];
@@ -62,6 +69,7 @@ int main(void) {
         perror("mlockall");
         return EXIT_FAILURE;
     }
+    prefault_stack();
 
     if (sched_setscheduler(0, SCHED_FIFO, &p) == -1) {
         perror("sched_setscheduler");
