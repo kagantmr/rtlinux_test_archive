@@ -95,6 +95,8 @@ int main(void) {
     clock_gettime(CLOCK_MONOTONIC, &next);
 
     /* ---------- Real-time Loop ---------- */
+
+    
     while (running) {
         fill_array(arr);
 
@@ -118,14 +120,29 @@ int main(void) {
         clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &next, NULL);
     }
 
+    /* ---------- Write Logged Timings to File ---------- */
+    FILE *fp = fopen("rt_sort_log.txt", "w");
+    if (fp == NULL) {
+        perror("fopen");
+        /* If file can't be opened, fallback to printing to stdout */
+        printf("Failed to open rt_sort_log.txt for writing. Printing to stdout instead.\n");
+        printf("Logged %d latency samples (ns):\n", latency_index);
+        for (int i = 0; i < latency_index; i++)
+            printf("%lld\n", latencies[i]);
+    } else {
+        for (int i = 0; i < latency_index; i++) {
+            if (fprintf(fp, "%lld\n", latencies[i]) < 0) {
+                perror("fprintf");
+                break;
+            }
+        }
+        fclose(fp);
+        printf("Logged %d samples to rt_sort_log.txt\n", latency_index);
+    }
+
     /* ---------- Cleanup ---------- */
     munlockall();
     free(arr);
-
-    /* ---------- Output Logged Timings ---------- */
-    printf("Logged %d latency samples (ns):\n", latency_index);
-    for (int i = 0; i < latency_index; i++)
-        printf("%lld\n", latencies[i]);
 
     return EXIT_SUCCESS;
 }
