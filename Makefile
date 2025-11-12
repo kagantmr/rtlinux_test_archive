@@ -1,53 +1,34 @@
-################################################################################
-# Top-level Makefile — build userspace programs in-place
-#
-# This Makefile compiles every .c file found in src/userspace into an
-# executable with the same basename (e.g. src/userspace/rt_sort.c ->
-# src/userspace/rt_sort). It places no artifacts in the repository root so
-# you can run `make` from the project root.
-#
-################################################################################
+# -------- Configuration --------
+CC      := gcc
+CFLAGS  := -std=gnu11 -Wall -Wextra -O2 -D_GNU_SOURCE
+INCLUDE := -Iinclude
+SRC_DIR := src/userspace
+BUILD_DIR := build/userspace
 
-CC       := gcc
-CFLAGS   := -std=gnu11 -Wall -Wextra -O2 -D_GNU_SOURCE -Iinclude
-LDFLAGS  :=
+# Default program (override with "make PROG=rt_sort" etc.)
+PROG ?= rt_matrix
 
-USRSRC   := src/userspace
-BUILD    := build/userspace
-SRCS     := $(wildcard $(USRSRC)/*.c)
-PROGS    := $(patsubst $(USRSRC)/%.c,$(BUILD)/%,$(SRCS))
+SRC  := $(SRC_DIR)/$(PROG).c
+OUT  := $(BUILD_DIR)/$(PROG)
 
-.PHONY: all userspace clean run run-all
+# -------- Rules --------
+all: $(OUT)
 
-all: userspace
+$(OUT): $(SRC)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< -lrt
 
-userspace: $(BUILD) $(PROGS)
-
-$(BUILD):
-	@mkdir -p $(BUILD)
-
-$(BUILD)/%: $(USRSRC)/%.c | $(BUILD)
-	@echo "CC $< -> $@"
-	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
-
-# run a single program: make run PROGRAM=rt_sort
-run: 
-	@if [ -z "$(PROGRAM)" ]; then \
-		echo "Usage: make run PROGRAM=<program_name>  (examples: PROGRAM=rt_sort)"; exit 1; \
-	fi
-	$(BUILD)/$(PROGRAM)
-
-# convenience: run everything (in sequence)
-run-all: $(PROGS)
-	@for p in $(PROGS); do echo "Running $$p"; ./$$p; done
+run: $(OUT)
+	sudo $(OUT)
 
 clean:
-	@echo "Cleaning userspace builds..."
-	-rm -f $(PROGS)
+	rm -f $(BUILD_DIR)/*
 
-################################################################################
-#+ Notes
-#+ - Real-time programs often require root or capabilities (CAP_SYS_NICE,
-#+   CAP_IPC_LOCK). If you see permission errors when running, use sudo or set
-#+   capabilities (e.g. sudo setcap 'cap_sys_nice,cap_ipc_lock+ep' ./src/userspace/rt_sort).
-################################################################################
+list:
+	@echo "Available programs:"
+	@ls $(SRC_DIR) | grep '\.c' | sed 's/\.c//'
+
+# Example usage:
+# make PROG=rt_sort
+# make PROG=rt_matmul
+# make run PROG=rt_matrix

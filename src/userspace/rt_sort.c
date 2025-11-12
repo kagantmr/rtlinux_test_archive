@@ -7,7 +7,7 @@
 #include <stdio.h>
 
 #define PERIOD_NS 10000000L  // 10 ms
-#define SIZE 50
+#define SIZE 64
 #define LOG_SIZE 10000       // number of timing samples
 
 static volatile sig_atomic_t running = 1;
