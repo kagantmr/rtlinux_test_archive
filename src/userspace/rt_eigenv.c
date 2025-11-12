@@ -11,7 +11,7 @@
 #define SIZE 32
 #define MAX_ITERATIONS 32
 #define LOG_SIZE 10000       // number of timing samples
-#define STACK_PREFLT (4 * 1024 * 1024)  // 8 MB
+#define STACK_PREFLT (4 * 1024 * 1024)  // 4 MB
 
 static volatile sig_atomic_t running = 1;
 static long long latencies[LOG_SIZE];
