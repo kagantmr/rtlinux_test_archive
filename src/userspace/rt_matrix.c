@@ -98,11 +98,11 @@ int main(void) {
     }
 
     // ---------- Write logged timings to file after loop
-    FILE *fp = fopen("rt_sort_log.txt", "w");
+    FILE *fp = fopen("rt_matrix_log.txt", "w");
     if (fp == NULL) {
         perror("fopen");
         // If file can't be opened, fallback to printing to stdout
-        printf("Failed to open rt_sort_log.txt for writing. Printing to stdout instead.\n");
+        printf("Failed to open rt_matrix_log.txt for writing. Printing to stdout instead.\n");
         printf("Logged %d latency samples (ns):\n", latency_index);
         for (int i = 0; i < latency_index; i++)
             printf("%lld\n", latencies[i]);
@@ -114,7 +114,7 @@ int main(void) {
             }
         }
         fclose(fp);
-        printf("Logged %d samples to rt_matmul_log.txt\n", latency_index);
+        printf("Logged %d samples to rt_matrix_log.txt\n", latency_index);
     }
 
     /* ---------- Clean-up ---------- */
