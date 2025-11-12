@@ -13,16 +13,20 @@ CFLAGS   := -std=gnu11 -Wall -Wextra -O2 -D_GNU_SOURCE -Iinclude
 LDFLAGS  :=
 
 USRSRC   := src/userspace
+BUILD    := build/userspace
 SRCS     := $(wildcard $(USRSRC)/*.c)
-PROGS    := $(patsubst $(USRSRC)/%.c,$(USRSRC)/%,$(SRCS))
+PROGS    := $(patsubst $(USRSRC)/%.c,$(BUILD)/%,$(SRCS))
 
 .PHONY: all userspace clean run run-all
 
 all: userspace
 
-userspace: $(PROGS)
+userspace: $(BUILD) $(PROGS)
 
-$(USRSRC)/%: $(USRSRC)/%.c
+$(BUILD):
+	@mkdir -p $(BUILD)
+
+$(BUILD)/%: $(USRSRC)/%.c | $(BUILD)
 	@echo "CC $< -> $@"
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
@@ -31,7 +35,7 @@ run:
 	@if [ -z "$(PROGRAM)" ]; then \
 		echo "Usage: make run PROGRAM=<program_name>  (examples: PROGRAM=rt_sort)"; exit 1; \
 	fi
-	$(USRSRC)/$(PROGRAM)
+	$(BUILD)/$(PROGRAM)
 
 # convenience: run everything (in sequence)
 run-all: $(PROGS)
@@ -47,4 +51,3 @@ clean:
 #+   CAP_IPC_LOCK). If you see permission errors when running, use sudo or set
 #+   capabilities (e.g. sudo setcap 'cap_sys_nice,cap_ipc_lock+ep' ./src/userspace/rt_sort).
 ################################################################################
-
