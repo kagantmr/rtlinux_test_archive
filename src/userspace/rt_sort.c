@@ -1,4 +1,4 @@
-#define _POSIX_C_SOURCE 200809L
+#define _GNU_SOURCE
 #include <signal.h>
 #include <stdlib.h>
 #include <time.h>
@@ -6,33 +6,29 @@
 #include <sched.h>
 #include <stdio.h>
 #include <pthread.h>
-
+#include <string.h>
+#include <unistd.h>
 
 #define PERIOD_NS 10000000L  // 10 ms
 #define SIZE 64
-#define LOG_SIZE 10000       // number of timing samples
-#define STACK_PREFLT (4 * 1024 * 1024)  // 8 MB
+#define STACK_PREFLT (4 * 1024 * 1024)
 
 static volatile sig_atomic_t running = 1;
-static long long latencies[LOG_SIZE];
-static int latency_index = 0;
 
-/* ---------- Signal Handling ---------- */
+// Statically allocated buffers
+static int merge_buffer[SIZE];
+
 void handle_sigint(int sig) {
     (void)sig;
     running = 0;
 }
 
-/* ---------- Merge Sort Implementation ---------- */
-static int merge_buffer[SIZE];
-
-
 void prefault_stack(void) {
     volatile char stack[STACK_PREFLT];
-    for (size_t i = 0; i < STACK_PREFLT; i += 4096)
-        stack[i] = 0;
+    memset((void*)stack, 0, STACK_PREFLT);
 }
 
+// Helper: Standard merge logic
 static void merge(int *array, int start, int middle, int end) {
     int i = start, j = middle + 1, k = start;
 
@@ -52,16 +48,26 @@ static void merge(int *array, int start, int middle, int end) {
         array[n] = merge_buffer[n];
 }
 
-void merge_sort(int *array, int start, int end) {
-    if (start < end) {
-        int middle = (start + end) / 2;
-        merge_sort(array, start, middle);
-        merge_sort(array, middle + 1, end);
-        merge(array, start, middle, end);
+// RT-SAFE: Iterative Merge Sort (No Recursion)
+void merge_sort_iterative(int *arr, int n) {
+    int curr_size;  // Size of subarrays: 1, 2, 4, 8...
+    int left_start; // Start index of left subarray
+
+    for (curr_size = 1; curr_size <= n - 1; curr_size = 2 * curr_size) {
+        for (left_start = 0; left_start < n - 1; left_start += 2 * curr_size) {
+            
+            int mid = left_start + curr_size - 1;
+            int right_end = left_start + 2 * curr_size - 1;
+
+            if (mid >= n) mid = n - 1;
+            if (right_end >= n) right_end = n - 1;
+
+            merge(arr, left_start, mid, right_end);
+        }
     }
 }
 
-/* ---------- Tiny RNG for test data ---------- */
+// RNG
 static unsigned int x = 123456789, y = 362436069, z = 521288629;
 static inline unsigned int xor_random(void) {
     unsigned int t = x ^ (x << 11);
@@ -75,24 +81,20 @@ static void fill_array(int *array) {
         array[i] = xor_random();
 }
 
-/* ---------- Main ---------- */
 int main(void) {
     signal(SIGINT, handle_sigint);
     signal(SIGTERM, handle_sigint);
 
+    // Statically allocate array or use stack if small enough
+    // For RT, malloc is okay in initialization (Main thread), but static is safer
     int *arr = calloc(SIZE, sizeof(int));
-    if (!arr) {
-        perror("calloc");
-        return EXIT_FAILURE;
-    }
+    if (!arr) return EXIT_FAILURE;
 
-    /* Setup realtime environment */
     struct sched_param p;
     p.sched_priority = 80;
 
     if (mlockall(MCL_CURRENT | MCL_FUTURE) == -1) {
-        perror("mlockall");
-        return EXIT_FAILURE;
+        perror("mlockall"); return EXIT_FAILURE;
     }
     prefault_stack();
 
@@ -102,63 +104,32 @@ int main(void) {
     pthread_setaffinity_np(pthread_self(), sizeof(set), &set);
 
     if (sched_setscheduler(0, SCHED_FIFO, &p) == -1) {
-        perror("sched_setscheduler");
-        munlockall();
-        return EXIT_FAILURE;
+        perror("sched_setscheduler"); return EXIT_FAILURE;
     }
 
-    struct timespec start, end, next;
+    struct timespec next;
     clock_gettime(CLOCK_MONOTONIC, &next);
 
-    /* ---------- Real-time Loop ---------- */
+    printf("RT Sort: Running Iterative Merge Sort Loop...\n");
 
-    
     while (running) {
+        // 1. New Random Data
         fill_array(arr);
 
-        clock_gettime(CLOCK_MONOTONIC, &start);
-        merge_sort(arr, 0, SIZE - 1);
-        clock_gettime(CLOCK_MONOTONIC, &end);
+        // 2. Sort (Iterative)
+        merge_sort_iterative(arr, SIZE);
 
-        long long elapsed =
-            (end.tv_sec - start.tv_sec) * 1000000000LL +
-            (end.tv_nsec - start.tv_nsec);
-
-        if (latency_index < LOG_SIZE)
-            latencies[latency_index++] = elapsed;
-
+        // 3. Sleep
         next.tv_nsec += PERIOD_NS;
         while (next.tv_nsec >= 1000000000L) {
             next.tv_nsec -= 1000000000L;
             next.tv_sec++;
         }
-
         clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &next, NULL);
     }
 
-    /* ---------- Write Logged Timings to File ---------- */
-    FILE *fp = fopen("rt_sort_log.txt", "w");
-    if (fp == NULL) {
-        perror("fopen");
-        /* If file can't be opened, fallback to printing to stdout */
-        printf("Failed to open rt_sort_log.txt for writing. Printing to stdout instead.\n");
-        printf("Logged %d latency samples (ns):\n", latency_index);
-        for (int i = 0; i < latency_index; i++)
-            printf("%lld\n", latencies[i]);
-    } else {
-        for (int i = 0; i < latency_index; i++) {
-            if (fprintf(fp, "%lld\n", latencies[i]) < 0) {
-                perror("fprintf");
-                break;
-            }
-        }
-        fclose(fp);
-        printf("Logged %d samples to rt_sort_log.txt\n", latency_index);
-    }
-
-    /* ---------- Cleanup ---------- */
     munlockall();
     free(arr);
-
+    printf("RT Sort: Finished.\n");
     return EXIT_SUCCESS;
 }

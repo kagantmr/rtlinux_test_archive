@@ -1,34 +1,48 @@
 # -------- Configuration --------
 CC      := gcc
-CFLAGS  := -std=gnu11 -Wall -Wextra -O2 -D_GNU_SOURCE -ffast-math
+CFLAGS  := -std=gnu11 -Wall -Wextra -Wno-unused-parameter -O2 -D_GNU_SOURCE -ffast-math
+LDFLAGS := -lrt -lpthread -lm 
 INCLUDE := -Iinclude
-SRC_DIR := src/userspace
-BUILD_DIR := build/userspace
 
-# Default program (override with "make PROG=rt_sort" etc.)
-PROG ?= rt_matrix
-
-SRC  := $(SRC_DIR)/$(PROG).c
-OUT  := $(BUILD_DIR)/$(PROG)
+PROG ?= rt_fft
+SRC  := src/userspace/$(PROG).c
+OUT  := build/userspace/$(PROG)
 
 # -------- Rules --------
+.PHONY: all clean run server test-os plot help
+
 all: $(OUT)
 
 $(OUT): $(SRC)
-	@mkdir -p $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< -lrt
-
-run: $(OUT)
-	sudo $(OUT)
+	@mkdir -p build/userspace
+	@echo "Compiling $(PROG)..."
+	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $< $(LDFLAGS)
 
 clean:
-	rm -f $(BUILD_DIR)/*
+	@rm -f build/userspace/* *.txt *.png
 
-list:
-	@echo "Available programs:"
-	@ls $(SRC_DIR) | grep '\.c' | sed 's/\.c//'
+# 1. Run the App
+run: $(OUT)
+	@echo "Starting $(PROG)..."
+	sudo $(OUT)
 
-# Example usage:
-# make PROG=rt_sort
-# make PROG=rt_matmul
-# make run PROG=rt_matrix
+# 2. Run Visualization
+server:
+	@echo "Starting Python Server..."
+	python3 lib/udp_server.py
+
+# 3. ANALYSIS: Run Cyclictest (Generates latency_results.txt)
+# -p80: Priority 80
+# -i10000: 10ms interval (same as your FFT loop)
+# -l10000: 10,000 loops
+# -h400: Histogram with 400 bins (0-400us)
+# -q: Quiet output (only histogram at end)
+test-os:
+	@echo "Running System Latency Test..."
+	sudo cyclictest -l10000 -m -S -p80 -i10000 -h400 -q > latency_results.txt
+	@echo "Done. Results saved to 'latency_results.txt'."
+
+# 4. PLOT: Generate Graph from Cyclictest data
+plot:
+	@echo "Generating Latency Graph..."
+	python3 lib/histogram.py latency_results.txt
