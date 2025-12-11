@@ -29,7 +29,7 @@ run: $(OUT)
 # 2. Run Visualization
 server:
 	@echo "Starting Python Server..."
-	python3 lib/udp_server.py
+	python3 lib/tcp_server.py
 
 # 3. ANALYSIS: Run Cyclictest (Generates latency_results.txt)
 # -p80: Priority 80
