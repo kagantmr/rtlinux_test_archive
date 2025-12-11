@@ -11,7 +11,7 @@ SRC  := src/userspace/$(PROG).c
 OUT  := build/userspace/$(PROG)
 
 # -------- Rules --------
-.PHONY: all clean run server test-os plot help
+.PHONY: all clean run server test-os plot help perf
 
 all: $(OUT)
 
@@ -37,7 +37,7 @@ server:
 # Now saves to latency_<PROGRAM_NAME>.txt
 test-os:
 	@echo "Running System Latency Test for context: $(PROG)..."
-	sudo cyclictest -l10000 -m -S -p80 -i10000 -h400 -q > latency_$(PROG).txt
+	sudo cyclictest -l10000 -m -S -p80 -i10000 -h900 -q > latency_$(PROG).txt
 	@echo "Done. Results saved to 'latency_$(PROG).txt'."
 
 # 4. PLOT: Generate Graph (Unique image per program)
@@ -45,3 +45,11 @@ test-os:
 plot:
 	@echo "Generating Graph for $(PROG)..."
 	python3 lib/histogram.py latency_$(PROG).txt $(PROG)
+
+# 5. PERF: Run perf stat (Profile performance)
+# Saves stats to perf_<PROGRAM_NAME>.txt
+perf: $(OUT)
+	@echo "Running perf stat on $(PROG)..."
+	@echo "Press Ctrl+C to stop the application and generate the report."
+	sudo perf stat -d -o perf_$(PROG).txt $(OUT)
+	@echo "Done. Performance stats saved to 'perf_$(PROG).txt'."
