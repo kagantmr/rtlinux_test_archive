@@ -4,7 +4,9 @@ CFLAGS  := -std=gnu11 -Wall -Wextra -Wno-unused-parameter -O2 -D_GNU_SOURCE -ffa
 LDFLAGS := -lrt -lpthread -lm 
 INCLUDE := -Iinclude
 
+# Default to rt_fft if not specified
 PROG ?= rt_fft
+
 SRC  := src/userspace/$(PROG).c
 OUT  := build/userspace/$(PROG)
 
@@ -31,18 +33,15 @@ server:
 	@echo "Starting Python Server..."
 	python3 lib/tcp_server.py
 
-# 3. ANALYSIS: Run Cyclictest (Generates latency_results.txt)
-# -p80: Priority 80
-# -i10000: 10ms interval (same as your FFT loop)
-# -l10000: 10,000 loops
-# -h400: Histogram with 400 bins (0-400us)
-# -q: Quiet output (only histogram at end)
+# 3. ANALYSIS: Run Cyclictest (Unique file per program)
+# Now saves to latency_<PROGRAM_NAME>.txt
 test-os:
-	@echo "Running System Latency Test..."
-	sudo cyclictest -l10000 -m -S -p80 -i10000 -h400 -q > latency_results.txt
-	@echo "Done. Results saved to 'latency_results.txt'."
+	@echo "Running System Latency Test for context: $(PROG)..."
+	sudo cyclictest -l10000 -m -S -p80 -i10000 -h400 -q > latency_$(PROG).txt
+	@echo "Done. Results saved to 'latency_$(PROG).txt'."
 
-# 4. PLOT: Generate Graph from Cyclictest data
+# 4. PLOT: Generate Graph (Unique image per program)
+# Passes the program name to the python script
 plot:
-	@echo "Generating Latency Graph..."
-	python3 lib/histogram.py latency_results.txt
+	@echo "Generating Graph for $(PROG)..."
+	python3 lib/histogram.py latency_$(PROG).txt $(PROG)
