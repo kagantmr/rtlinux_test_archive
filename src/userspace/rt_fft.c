@@ -215,8 +215,8 @@ int main(void) {
     pthread_attr_t attr;
     struct sched_param param;
 
-    thread_args_t fft_args = { .core_id = 0 };
-    thread_args_t sock_args = { .core_id = 1 };
+    thread_args_t fft_args = { .core_id = 2 };
+    thread_args_t sock_args = { .core_id = 3 };
 
     pthread_attr_init(&attr);
     pthread_attr_setinheritsched(&attr, PTHREAD_EXPLICIT_SCHED);

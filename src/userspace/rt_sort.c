@@ -100,7 +100,7 @@ int main(void) {
 
     cpu_set_t set;
     CPU_ZERO(&set);
-    CPU_SET(0, &set);
+    CPU_SET(2, &set);
     pthread_setaffinity_np(pthread_self(), sizeof(set), &set);
 
     if (sched_setscheduler(0, SCHED_FIFO, &p) == -1) {
