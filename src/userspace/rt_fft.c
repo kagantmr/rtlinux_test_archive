@@ -21,7 +21,7 @@
 #define RB_CAPACITY 16 
 
 // Priorities
-#define PRIO_FFT     80
+#define PRIO_FFT     90
 #define PRIO_SOCKET  40
 
 static volatile sig_atomic_t running = 1;

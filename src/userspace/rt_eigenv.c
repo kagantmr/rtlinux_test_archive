@@ -83,7 +83,7 @@ int main(void) {
 
     // RT Setup
     struct sched_param p;
-    p.sched_priority = 80;
+    p.sched_priority = 88;
 
     if (mlockall(MCL_CURRENT | MCL_FUTURE) == -1) {
         perror("mlockall"); return EXIT_FAILURE;
@@ -106,7 +106,7 @@ int main(void) {
     struct timespec next;
     clock_gettime(CLOCK_MONOTONIC, &next);
 
-    printf("RT Eigenvalue: Running Power Iteration Loop...\n");
+    printf("RT Eigenvalue: Running power iteration loop...\n");
 
     while (running) {
         // --- WORKLOAD ---

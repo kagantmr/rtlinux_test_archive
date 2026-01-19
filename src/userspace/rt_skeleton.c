@@ -15,7 +15,7 @@
 #define STACK_PREFLT (4*1024*1024) // 4MB Stack
 
 // Thread Priorities (SCHED_FIFO ranges 1-99)
-#define PRIO_FFT     80
+#define PRIO     80
 #define PRIO_SOCKET  40
 
 static volatile sig_atomic_t running = 1;
@@ -135,7 +135,7 @@ int main(void) {
     pthread_attr_setschedpolicy(&attr, SCHED_FIFO);
 
     // --- CREATE FFT THREAD (PRIORITY 80) ---
-    param.sched_priority = PRIO_FFT;
+    param.sched_priority = PRIO;
     pthread_attr_setschedparam(&attr, &param);
     if (pthread_create(&fft_tid, &attr, fft_rt_thread, &fft_args) != 0) {
         perror("Failed to create FFT thread");

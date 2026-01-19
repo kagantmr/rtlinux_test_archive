@@ -45,7 +45,7 @@ int main(void) {
     fill_matrix(B);
 
     struct sched_param p;
-    p.sched_priority = 80;
+    p.sched_priority = 85;
 
     if (mlockall(MCL_CURRENT | MCL_FUTURE) == -1) {
         perror("mlockall"); return EXIT_FAILURE;
